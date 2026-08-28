@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>가위바위보 배틀 아레나</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              500: '#22c55e',
+              600: '#16a34a',
+              dark: '#0f172a',
+              card: '#1e293b'
+            }
+          },
+          keyframes: {
+            shake: {
+              '0%, 100%': { transform: 'translateY(0) rotate(0deg)' },
+              '25%': { transform: 'translateY(-12px) rotate(-8deg)' },
+              '50%': { transform: 'translateY(8px) rotate(8deg)' },
+              '75%': { transform: 'translateY(-8px) rotate(-4deg)' },
+            },
+            pop: {
+              '0%': { transform: 'scale(0.8)', opacity: '0' },
+              '70%': { transform: 'scale(1.1)' },
+              '100%': { transform: 'scale(1)', opacity: '1' }
+            },
+            pulseGlow: {
+              '0%, 100%': { boxShadow: '0 0 15px rgba(34, 197, 94, 0.4)' },
+              '50%': { boxShadow: '0 0 30px rgba(34, 197, 94, 0.8)' }
+            }
+          },
+          animation: {
+            shake: 'shake 0.4s ease-in-out infinite',
+            pop: 'pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
+            pulseGlow: 'pulseGlow 2s infinite'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800;900&display=swap');
+    body {
+      font-family: 'Pretendard', sans-serif;
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 4px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background-color: #334155;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-between p-3 sm:p-6 select-none relative overflow-x-hidden">
+
+  <!-- 컨페티 효과 캔버스 -->
+  <canvas id="confetti-canvas" class="fixed inset-0 pointer-events-none z-50"></canvas>
+
+  <!-- 상단 헤더 -->
+  <header class="w-full max-w-2xl flex items-center justify-between py-2 border-b border-slate-800/80 mb-4">
+    <div class="flex items-center gap-2">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 font-black shadow-lg shadow-emerald-500/20 text-lg">
+        ⚔️
+      </div>
+      <div>
+        <h1 class="text-lg sm:text-xl font-black tracking-tight bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent">
+          가위바위보 아레나
+        </h1>
+        <p class="text-[11px] text-slate-400">최고 연승 기록에 도전하세요!</p>
+      </div>
+    </div>
+    
+    <div class="flex items-center gap-2">
+      <!-- 사운드 토글 -->
+      <button id="sound-btn" onclick="toggleSound()" class="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-all text-sm flex items-center gap-1 border border-slate-700/50" title="효과음 켜기/끄기">
+        <i id="sound-icon" class="fa-solid fa-volume-high"></i>
+      </button>
+      <!-- 통계 초기화 버튼 -->
+      <button onclick="confirmReset()" class="p-2.5 rounded-xl bg-slate-800/80 hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-all text-sm border border-slate-700/50" title="전적 초기화">
+        <i class="fa-solid fa-rotate-right"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- 메인 게임 컨테이너 -->
+  <main class="w-full max-w-2xl flex-1 flex flex-col gap-4 justify-center">
+
+    <!-- 점수 및 상태 바 -->
+    <div class="grid grid-cols-4 gap-2 text-center">
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-2.5 shadow-sm">
+        <p class="text-[11px] text-slate-400 font-medium">현재 연승</p>
+        <p id="stat-streak" class="text-lg sm:text-xl font-extrabold text-amber-400">0 🔥</p>
+      </div>
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-2.5 shadow-sm">
+        <p class="text-[11px] text-slate-400 font-medium">최고 연승</p>
+        <p id="stat-best" class="text-lg sm:text-xl font-extrabold text-emerald-400">0 🏆</p>
+      </div>
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-2.5 shadow-sm">
+        <p class="text-[11px] text-slate-400 font-medium">승률</p>
+        <p id="stat-winrate" class="text-lg sm:text-xl font-extrabold text-cyan-400">0%</p>
+      </div>
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-2.5 shadow-sm">
+        <p class="text-[11px] text-slate-400 font-medium">전체 판수</p>
+        <p id="stat-total" class="text-lg sm:text-xl font-extrabold text-purple-400">0판</p>
+      </div>
+    </div>
+
+    <!-- 배틀 아레나 (플레이어 vs 컴퓨터) -->
+    <div class="relative bg-slate-900/70 border border-slate-800/80 rounded-3xl p-5 sm:p-8 backdrop-blur shadow-2xl overflow-hidden">
+      <!-- 배경 장식 효과 -->
+      <div class="absolute -top-24 -left-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute -bottom-24 -right-24 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div class="flex items-center justify-between gap-2 sm:gap-6 relative z-10">
+        <!-- 플레이어 카드 -->
+        <div class="flex-1 flex flex-col items-center text-center">
+          <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold mb-3">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            나 (YOU)
+          </div>
+          <div id="player-box" class="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl bg-slate-800/90 border-2 border-slate-700/80 flex items-center justify-center text-5xl sm:text-6xl shadow-inner transition-all duration-300">
+            <span id="player-hand" class="inline-block transition-transform duration-200">❔</span>
+          </div>
+          <p id="player-choice-name" class="text-xs text-slate-400 mt-2 font-medium">선택 대기중</p>
+        </div>
+
+        <!-- VS 인디케이터 & 경기 판정 결과 -->
+        <div class="flex flex-col items-center justify-center px-2">
+          <div id="vs-badge" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-black text-xs sm:text-sm text-slate-400 shadow-md">
+            VS
+          </div>
+        </div>
+
+        <!-- 컴퓨터 카드 -->
+        <div class="flex-1 flex flex-col items-center text-center">
+          <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-semibold mb-3">
+            <i class="fa-solid fa-robot text-[10px]"></i>
+            인공지능 (AI)
+          </div>
+          <div id="cpu-box" class="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl bg-slate-800/90 border-2 border-slate-700/80 flex items-center justify-center text-5xl sm:text-6xl shadow-inner transition-all duration-300">
+            <span id="cpu-hand" class="inline-block transition-transform duration-200">❔</span>
+          </div>
+          <p id="cpu-choice-name" class="text-xs text-slate-400 mt-2 font-medium">계산 대기중</p>
+        </div>
+      </div>
+
+      <!-- 라운드 결과 배너 -->
+      <div class="mt-6 text-center">
+        <div id="result-badge" class="inline-block px-5 py-2 rounded-xl text-sm sm:text-base font-extrabold bg-slate-800/70 border border-slate-700 text-slate-300 transition-all duration-300 shadow-lg min-w-[200px]">
+          아래 버튼을 눌러 승부하세요!
+        </div>
+      </div>
+    </div>
+
+    <!-- 손 선택 버튼 그룹 -->
+    <div class="grid grid-cols-3 gap-3 sm:gap-4">
+      <!-- 가위 버튼 -->
+      <button onclick="playRound('scissors')" class="action-btn group relative flex flex-col items-center justify-center p-3 sm:p-5 rounded-2xl bg-gradient-to-b from-slate-800 to-slate-900 border border-slate-700/80 hover:border-emerald-500 hover:from-slate-800 hover:to-emerald-950/40 active:scale-95 transition-all duration-150 shadow-lg cursor-pointer">
+        <span class="text-4xl sm:text-5xl group-hover:scale-110 transition-transform duration-200">✌️</span>
+        <span class="text-xs sm:text-sm font-bold text-slate-200 mt-2 group-hover:text-emerald-400">가위</span>
+        <span class="text-[10px] text-slate-500 mt-0.5 hidden sm:inline">단축키 [1]</span>
+      </button>
+
+      <!-- 바위 버튼 -->
+      <button onclick="playRound('rock')" class="action-btn group relative flex flex-col items-center justify-center p-3 sm:p-5 rounded-2xl bg-gradient-to-b from-slate-800 to-slate-900 border border-slate-700/80 hover:border-emerald-500 hover:from-slate-800 hover:to-emerald-950/40 active:scale-95 transition-all duration-150 shadow-lg cursor-pointer">
+        <span class="text-4xl sm:text-5xl group-hover:scale-110 transition-transform duration-200">✊</span>
+        <span class="text-xs sm:text-sm font-bold text-slate-200 mt-2 group-hover:text-emerald-400">바위</span>
+        <span class="text-[10px] text-slate-500 mt-0.5 hidden sm:inline">단축키 [2]</span>
+      </button>
+
+      <!-- 보 버튼 -->
+      <button onclick="playRound('paper')" class="action-btn group relative flex flex-col items-center justify-center p-3 sm:p-5 rounded-2xl bg-gradient-to-b from-slate-800 to-slate-900 border border-slate-700/80 hover:border-emerald-500 hover:from-slate-800 hover:to-emerald-950/40 active:scale-95 transition-all duration-150 shadow-lg cursor-pointer">
+        <span class="text-4xl sm:text-5xl group-hover:scale-110 transition-transform duration-200">🖐️</span>
+        <span class="text-xs sm:text-sm font-bold text-slate-200 mt-2 group-hover:text-emerald-400">보</span>
+        <span class="text-[10px] text-slate-500 mt-0.5 hidden sm:inline">단축키 [3]</span>
+      </button>
+    </div>
+
+    <!-- 최근 대전 기록 (히스토리) -->
+    <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-3 sm:p-4">
+      <div class="flex items-center justify-between text-xs text-slate-400 mb-2.5 px-1 font-medium">
+        <span><i class="fa-solid fa-clock-rotate-left mr-1"></i> 최근 대전 기록</span>
+        <span id="score-summary" class="text-slate-300">0승 0무 0패</span>
+      </div>
+      <div id="history-list" class="flex items-center gap-2 overflow-x-auto py-1 custom-scroll min-h-[42px]">
+        <div class="text-xs text-slate-500 italic px-2">게임을 시작하면 기록이 표시됩니다.</div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- 하단 푸터 -->
+  <footer class="w-full max-w-2xl text-center py-3 text-[11px] text-slate-500">
+    키보드 숫자 <kbd class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">1</kbd>, <kbd class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">2</kbd>, <kbd class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">3</kbd>을 눌러 빠르게 선택할 수 있습니다.
+  </footer>
+
+  <!-- 초기화 모달 UI (alert 대체) -->
+  <div id="confirm-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl animate-pop">
+      <div class="w-12 h-12 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center mx-auto mb-3 text-xl">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+      </div>
+      <h3 class="text-lg font-bold text-slate-100 mb-1">기록을 초기화할까요?</h3>
+      <p class="text-xs text-slate-400 mb-5">연승, 승률, 대전 히스토리가 모두 0으로 재설정됩니다.</p>
+      <div class="flex gap-2">
+        <button onclick="closeResetModal()" class="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors">취소</button>
+        <button onclick="executeReset()" class="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-semibold transition-colors shadow-lg shadow-red-600/30">초기화</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- 게임 상태 관리 ---
+    const HANDS = {
+      scissors: { name: '가위', emoji: '✌️', beats: 'paper' },
+      rock:     { name: '바위', emoji: '✊', beats: 'scissors' },
+      paper:    { name: '보',   emoji: '🖐️', beats: 'rock' }
+    };
+
+    const state = {
+      wins: 0,
+      draws: 0,
+      losses: 0,
+      streak: 0,
+      bestStreak: 0,
+      isPlaying: false,
+      soundEnabled: true,
+      history: []
+    };
+
+    // --- Web Audio API 사운드 생성기 ---
+    let audioCtx = null;
+
+    function getAudioContext() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          audioCtx = new AudioContextClass();
+        }
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    function playSound(type) {
+      if (!state.soundEnabled) return;
+      try {
+        const ctx = getAudioContext();
+        if (!ctx) return;
+
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        if (type === 'click') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(440, now);
+          osc.frequency.exponentialRampToValueAtTime(880, now + 0.05);
+          gain.gain.setValueAtTime(0.15, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+          osc.start(now);
+          osc.stop(now + 0.05);
+        } else if (type === 'win') {
+          // 승리 팡파레 아르페지오
+          const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+          notes.forEach((freq, idx) => {
+            const noteOsc = ctx.createOscillator();
+            const noteGain = ctx.createGain();
+            noteOsc.type = 'triangle';
+            noteOsc.frequency.setValueAtTime(freq, now + idx * 0.08);
+            noteGain.gain.setValueAtTime(0.2, now + idx * 0.08);
+            noteGain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.25);
+            noteOsc.connect(noteGain);
+            noteGain.connect(ctx.destination);
+            noteOsc.start(now + idx * 0.08);
+            noteOsc.stop(now + idx * 0.08 + 0.25);
+          });
+        } else if (type === 'lose') {
+          // 패배 하강음
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(320, now);
+          osc.frequency.exponentialRampToValueAtTime(140, now + 0.3);
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+          osc.start(now);
+          osc.stop(now + 0.3);
+        } else if (type === 'draw') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(350, now);
+          osc.frequency.setValueAtTime(350, now + 0.1);
+          gain.gain.setValueAtTime(0.15, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+          osc.start(now);
+          osc.stop(now + 0.2);
+        }
+      } catch (err) {
+        // 오디오 실행 불가 시 무시
+      }
+    }
+
+    function toggleSound() {
+      state.soundEnabled = !state.soundEnabled;
+      const icon = document.getElementById('sound-icon');
+      if (state.soundEnabled) {
+        icon.className = 'fa-solid fa-volume-high';
+        playSound('click');
+      } else {
+        icon.className = 'fa-solid fa-volume-xmark text-slate-500';
+      }
+    }
+
+    // --- 메인 게임 로직 ---
+    function playRound(playerChoice) {
+      if (state.isPlaying) return;
+      state.isPlaying = true;
+
+      playSound('click');
+
+      // 버튼 비활성화 시각 효과
+      document.querySelectorAll('.action-btn').forEach(btn => btn.classList.add('opacity-50', 'pointer-events-none'));
+
+      // DOM 요소
+      const playerBox = document.getElementById('player-box');
+      const cpuBox = document.getElementById('cpu-box');
+      const playerHand = document.getElementById('player-hand');
+      const cpuHand = document.getElementById('cpu-hand');
+      const resultBadge = document.getElementById('result-badge');
+      const playerName = document.getElementById('player-choice-name');
+      const cpuName = document.getElementById('cpu-choice-name');
+
+      // 리셋 및 흔들기(Shake) 연출 시작
+      playerBox.className = 'w-28 h-28 sm:w-36 sm:h-36 rounded-2xl bg-slate-800/90 border-2 border-slate-700 flex items-center justify-center text-5xl sm:text-6xl shadow-inner animate-shake';
+      cpuBox.className = 'w-28 h-28 sm:w-36 sm:h-36 rounded-2xl bg-slate-800/90 border-2 border-slate-700 flex items-center justify-center text-5xl sm:text-6xl shadow-inner animate-shake';
+      
+      playerHand.textContent = '✊';
+      cpuHand.textContent = '✊';
+      playerName.textContent = '가위...';
+      cpuName.textContent = '바위...';
+
+      resultBadge.className = 'inline-block px-5 py-2 rounded-xl text-sm sm:text-base font-extrabold bg-slate-800 border border-slate-700 text-amber-400 transition-all';
+      resultBadge.textContent = '결과 예측 중...';
+
+      // 0.8초 후 결과 공개
+      setTimeout(() => {
+        // 컴퓨터 선택
+        const keys = Object.keys(HANDS);
+        const cpuChoice = keys[Math.floor(Math.random() * keys.length)];
+
+        // 흔들기 중지
+        playerBox.classList.remove('animate-shake');
+        cpuBox.classList.remove('animate-shake');
+
+        // 손 모양 및 이름 적용
+        playerHand.textContent = HANDS[playerChoice].emoji;
+        cpuHand.textContent = HANDS[cpuChoice].emoji;
+        playerName.textContent = HANDS[playerChoice].name;
+        cpuName.textContent = HANDS[cpuChoice].name;
+
+        // 승패 판정
+        let result = ''; // 'win', 'lose', 'draw'
+
+        if (playerChoice === cpuChoice) {
+          result = 'draw';
+          state.draws++;
+          state.streak = 0;
+          
+          playerBox.className = 'w-28 h-28 sm:w-36 sm:h-36 rounded-2xl bg-amber-950/30 border-2 border-amber-500/60 flex items-center justify-center text-5xl sm:text-6xl shadow-lg shadow-amber-500/10 animate-pop';
+          cpuBox.className = 'w-28 h-28 sm:w-36 sm:h-36 rounded-2xl bg-amber-950/30 border-2 border-amber-500/60 flex items-center justify-center text-5xl sm:text-6xl shadow-lg shadow-amber-500/10 animate-pop';
+          
+          resultBadge.className = 'inline-block px-6 py-2 rounded-xl text-sm sm:text-base font-extrabold bg-amber-500/20 border border-amber-500/40 text-amber-300 shadow-lg animate-pop';
+          resultBadge.textContent = '🤝 비겼습니다!';
+          playSound('draw');
+        } else if (HANDS[playerChoice].beats === cpuChoice) {
+          result = 'win';
+          state.wins++;
+          state.streak++;
+          if (state.streak > state.bestStreak) {
+            state.bestStreak = state.streak;
+          }
+
+          playerBox.className = 'w-28 h-28 sm:w-36 sm:h-36 rounded-2xl bg-emerald-950/40 border-2 border-emerald-500 flex items-center justify-center text-5xl sm:text-6xl shadow-xl shadow-emerald-500/20 animate-pop';
+          cpuBox.className = 'w-28 h-28 sm:w-36 sm:h-36 rounded-2xl bg-slate-900 border-2 border-slate-800 opacity-60 flex items-center justify-center text-5xl sm:text-6xl animate-pop';
+
+          resultBadge.className = 'inline-block px-6 py-2 rounded-xl text-sm sm:text-base font-extrabold bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 shadow-xl shadow-emerald-500/20 animate-pop';
+          resultBadge.textContent = state.streak >= 3 ? `🔥 ${state.streak}연승 대승리! 🎉` : '🎉 승리했습니다!';
+          
+          playSound('win');
+          triggerConfetti();
+        } else {
+          result = 'lose';
+          state.losses++;
+          state.streak = 0;
+
+          playerBox.className = 'w-28 h-28 sm:w-36 sm:h-36 rounded-2xl bg-slate-900 border-2 border-slate-800 opacity-60 flex items-center justify-center text-5xl sm:text-6xl animate-pop';
+          cpuBox.className = 'w-28 h-28 sm:w-36 sm:h-36 rounded-2xl bg-rose-950/40 border-2 border-rose-500 flex items-center justify-center text-5xl sm:text-6xl shadow-xl shadow-rose-500/20 animate-pop';
+
+          resultBadge.className = 'inline-block px-6 py-2 rounded-xl text-sm sm:text-base font-extrabold bg-rose-500/20 border border-rose-500/40 text-rose-300 shadow-lg animate-pop';
+          resultBadge.textContent = '😢 패배했습니다...';
+          playSound('lose');
+        }
+
+        // 히스토리 추가
+        addHistory(playerChoice, cpuChoice, result);
+
+        // 통계 UI 갱신
+        updateStats();
+
+        // 쿨타임 해제
+        setTimeout(() => {
+          state.isPlaying = false;
+          document.querySelectorAll('.action-btn').forEach(btn => btn.classList.remove('opacity-50', 'pointer-events-none'));
+        }, 300);
+
+      }, 800);
+    }
+
+    // --- 통계 UI 업데이트 ---
+    function updateStats() {
+      const total = state.wins + state.draws + state.losses;
+      const winrate = total > 0 ? Math.round((state.wins / total) * 100) : 0;
+
+      document.getElementById('stat-streak').textContent = `${state.streak} 🔥`;
+      document.getElementById('stat-best').textContent = `${state.bestStreak} 🏆`;
+      document.getElementById('stat-winrate').textContent = `${winrate}%`;
+      document.getElementById('stat-total').textContent = `${total}판`;
+      document.getElementById('score-summary').textContent = `${state.wins}승 ${state.draws}무 ${state.losses}패`;
+    }
+
+    // --- 대전 히스토리 기록 ---
+    function addHistory(pChoice, cChoice, result) {
+      state.history.unshift({ pChoice, cChoice, result, time: new Date() });
+      if (state.history.length > 8) state.history.pop();
+
+      const container = document.getElementById('history-list');
+      container.innerHTML = '';
+
+      state.history.forEach(item => {
+        const badge = document.createElement('div');
+        let bgStyle = 'bg-slate-800 text-slate-300 border-slate-700';
+        let resultLabel = '무';
+        if (item.result === 'win') {
+          bgStyle = 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40';
+          resultLabel = '승';
+        } else if (item.result === 'lose') {
+          bgStyle = 'bg-rose-950/60 text-rose-300 border-rose-500/40';
+          resultLabel = '패';
+        }
+
+        badge.className = `flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg border text-xs font-semibold ${bgStyle} animate-pop`;
+        badge.innerHTML = `
+          <span>${HANDS[item.pChoice].emoji}</span>
+          <span class="text-[10px] opacity-60">vs</span>
+          <span>${HANDS[item.cChoice].emoji}</span>
+          <span class="ml-1 text-[11px] font-bold">(${resultLabel})</span>
+        `;
+        container.appendChild(badge);
+      });
+    }
+
+    // --- 초기화 모달 및 리셋 ---
+    function confirmReset() {
+      playSound('click');
+      document.getElementById('confirm-modal').classList.remove('hidden');
+    }
+
+    function closeResetModal() {
+      playSound('click');
+      document.getElementById('confirm-modal').classList.add('hidden');
+    }
+
+    function executeReset() {
+      state.wins = 0;
+      state.draws = 0;
+      state.losses = 0;
+      state.streak = 0;
+      state.bestStreak = 0;
+      state.history = [];
+
+      updateStats();
+
+      document.getElementById('player-hand').textContent = '❔';
+      document.getElementById('cpu-hand').textContent = '❔';
+      document.getElementById('player-choice-name').textContent = '선택 대기중';
+      document.getElementById('cpu-choice-name').textContent = '계산 대기중';
+      
+      const resultBadge = document.getElementById('result-badge');
+      resultBadge.className = 'inline-block px-5 py-2 rounded-xl text-sm sm:text-base font-extrabold bg-slate-800/70 border border-slate-700 text-slate-300 transition-all';
+      resultBadge.textContent = '아래 버튼을 눌러 승부하세요!';
+
+      const playerBox = document.getElementById('player-box');
+      const cpuBox = document.getElementById('cpu-box');
+      playerBox.className = 'w-28 h-28 sm:w-36 sm:h-36 rounded-2xl bg-slate-800/90 border-2 border-slate-700/80 flex items-center justify-center text-5xl sm:text-6xl shadow-inner';
+      cpuBox.className = 'w-28 h-28 sm:w-36 sm:h-36 rounded-2xl bg-slate-800/90 border-2 border-slate-700/80 flex items-center justify-center text-5xl sm:text-6xl shadow-inner';
+
+      const container = document.getElementById('history-list');
+      container.innerHTML = '<div class="text-xs text-slate-500 italic px-2">게임을 시작하면 기록이 표시됩니다.</div>';
+
+      closeResetModal();
+    }
+
+    // --- 키보드 단축키 지원 ---
+    window.addEventListener('keydown', (e) => {
+      if (state.isPlaying) return;
+      if (e.key === '1' || e.key.toLowerCase() === 's') playRound('scissors');
+      if (e.key === '2' || e.key.toLowerCase() === 'r') playRound('rock');
+      if (e.key === '3' || e.key.toLowerCase() === 'p') playRound('paper');
+    });
+
+    // --- 자체 경량 컨페티(Confetti) 폭죽 파티클 효과 ---
+    function triggerConfetti() {
+      const canvas = document.getElementById('confetti-canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      const particles = [];
+      const colors = ['#22c55e', '#3b82f6', '#f59e0b', '#ec4899', '#a855f7', '#14b8a6'];
+
+      for (let i = 0; i < 70; i++) {
+        particles.push({
+          x: canvas.width / 2,
+          y: canvas.height / 2 + 50,
+          w: Math.random() * 8 + 4,
+          h: Math.random() * 8 + 4,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          vx: (Math.random() - 0.5) * 16,
+          vy: (Math.random() - 0.8) * 18,
+          rotation: Math.random() * 360,
+          vRot: (Math.random() - 0.5) * 10,
+          opacity: 1
+        });
+      }
+
+      let animationFrame;
+      function render() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        let activeCount = 0;
+
+        particles.forEach(p => {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += 0.4; // 중력
+          p.vx *= 0.98; // 공기 저항
+          p.rotation += p.vRot;
+          p.opacity -= 0.015;
+
+          if (p.opacity > 0) {
+            activeCount++;
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate((p.rotation * Math.PI) / 180);
+            ctx.globalAlpha = Math.max(0, p.opacity);
+            ctx.fillStyle = p.color;
+            ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+            ctx.restore();
+          }
+        });
+
+        if (activeCount > 0) {
+          animationFrame = requestAnimationFrame(render);
+        } else {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          cancelAnimationFrame(animationFrame);
+        }
+      }
+
+      render();
+    }
+
+    // 창 리사이즈 대응
+    window.addEventListener('resize', () => {
+      const canvas = document.getElementById('confetti-canvas');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    });
+  </script>
+</body>
+</html>
